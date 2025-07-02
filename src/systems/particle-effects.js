@@ -7,12 +7,12 @@ class Particle {
         this.vy = options.vy || Utils.Math.randomFloat(-3, -1);
         this.life = options.life || CONFIG.EFFECTS.PARTICLE_LIFETIME;
         this.maxLife = this.life;
-        this.size = options.size || Utils.Math.randomFloat(1, 3);
+        this.size = options.size || Utils.Math.randomFloat(1, 2);
         this.color = options.color || Utils.Array.randomElement(CONFIG.COLORS.PARTICLE_COLORS);
         this.alpha = 1;
         this.gravity = options.gravity || 0.1;
         this.friction = options.friction || 0.98;
-        this.glow = options.glow || true;
+        this.glow = options.glow || false;
         this.type = options.type || 'default';
 
         // プール管理用フラグ
@@ -57,7 +57,7 @@ class Particle {
 
         if (this.glow && CONFIG.EFFECTS.ENABLE_GLOW) {
             ctx.shadowColor = this.color;
-            ctx.shadowBlur = this.size * 3;
+            ctx.shadowBlur = this.size * 2;
         }
 
         ctx.beginPath();
@@ -282,7 +282,7 @@ class ParticleSystem {
                 vy: Math.sin(angle) * speed,
                 color: color,
                 size: Utils.Math.randomFloat(1, 3),
-                life: Utils.Math.randomInt(20, 40),
+                life: Utils.Math.randomInt(15, 25),
                 gravity: Utils.Math.randomFloat(0.05, 0.15),
                 type: 'explosion'
             });
@@ -307,7 +307,7 @@ class ParticleSystem {
                 vy: Utils.Math.randomFloat(-6, -2),
                 color: color,
                 size: Utils.Math.randomFloat(0.5, 2),
-                life: Utils.Math.randomInt(15, 30),
+                life: Utils.Math.randomInt(10, 20),
                 gravity: 0.2,
                 type: 'spark'
             });
@@ -374,7 +374,7 @@ class ParticleSystem {
         const particle = new ScoreParticle(x, y, {
             text: `+${points}`,
             color: color,
-            life: 90
+            life: 60
         });
 
         // スコアパーティクルはプールを使用しない（特殊なタイプのため）

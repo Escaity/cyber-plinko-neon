@@ -2,7 +2,7 @@
 const CONFIG = {
     // ゲーム基本設定
     GAME: {
-        INITIAL_BALL_COUNT: 15,
+        INITIAL_BALL_COUNT: 55,
         CANVAS_WIDTH: 600,
         CANVAS_HEIGHT: 700,
         MAX_BALLS_ON_SCREEN: 50, // パフォーマンス改善: 同時表示球数制限
@@ -24,7 +24,7 @@ const CONFIG = {
         RADIUS: 6,
         INITIAL_Y: 20,
         RANDOM_VELOCITY_RANGE: 1.5,
-        TRAIL_LENGTH: 5, // パーティクルトレイルの長さ
+        TRAIL_LENGTH: 3, // パーティクルトレイルの長さ
         GLOW_INTENSITY: 0.8
     },
 
@@ -50,7 +50,7 @@ const CONFIG = {
     // パフォーマンス設定
     PERFORMANCE: {
         ENABLE_OBJECT_POOLING: true,
-        MAX_PARTICLES: 200,
+        MAX_PARTICLES: 150,
         COLLISION_GRID_SIZE: 50, // 空間分割のグリッドサイズ
         UPDATE_FREQUENCY: 1, // 毎フレーム更新 (1 = 毎回, 2 = 1フレームおき)
         RENDER_SCALE: 1, // レンダリングスケール
@@ -63,7 +63,7 @@ const CONFIG = {
         ENABLE_TRAILS: true,
         ENABLE_GLOW: true,
         ENABLE_SCREEN_SHAKE: true,
-        PARTICLE_LIFETIME: 30,
+        PARTICLE_LIFETIME: 20,
         EXPLOSION_PARTICLES: 20,
         SCREEN_SHAKE_INTENSITY: 3
     },

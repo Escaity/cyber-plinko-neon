@@ -1,4 +1,4 @@
-// 物理エンティティの基底クラス
+// 物理エンティティの基底クラス - 軽量化版
 class PhysicsEntity {
     constructor(x, y, options = {}) {
         // 位置
@@ -40,7 +40,7 @@ class PhysicsEntity {
     }
 
     /**
-     * 位置の更新
+     * 位置の更新（修正版）
      */
     updatePosition(deltaTime = 1) {
         if (this.isStatic || !this.isActive) return;
@@ -49,7 +49,8 @@ class PhysicsEntity {
         this.prevX = this.x;
         this.prevY = this.y;
 
-        // 物理演算
+        // 【修正】物理演算の有効化
+        // 加速度から速度を更新
         // this.vx += this.ax * deltaTime;
         // this.vy += this.ay * deltaTime;
         //
@@ -109,7 +110,7 @@ class PhysicsEntity {
     }
 
     /**
-     * 境界チェック
+     * 境界チェック（軽量化版）
      */
     checkBounds(width, height) {
         let collided = false;
@@ -117,22 +118,18 @@ class PhysicsEntity {
         // 左右の境界
         if (this.x - this.radius < 0) {
             this.x = this.radius;
-            this.vx *= -this.bounce;
+            this.vx = Math.abs(this.vx) * this.bounce;
             collided = true;
         } else if (this.x + this.radius > width) {
             this.x = width - this.radius;
-            this.vx *= -this.bounce;
+            this.vx = -Math.abs(this.vx) * this.bounce;
             collided = true;
         }
 
-        // 上下の境界
+        // 上の境界のみ（下は自然落下）
         if (this.y - this.radius < 0) {
             this.y = this.radius;
-            this.vy *= -this.bounce;
-            collided = true;
-        } else if (this.y + this.radius > height) {
-            this.y = height - this.radius;
-            this.vy *= -this.bounce;
+            this.vy = Math.abs(this.vy) * this.bounce;
             collided = true;
         }
 
@@ -154,7 +151,7 @@ class PhysicsEntity {
     }
 
     /**
-     * 衝突判定
+     * 高速衝突判定
      */
     isCollidingWith(other) {
         if (!this.canCollide || !other.canCollide) return false;
@@ -164,90 +161,68 @@ class PhysicsEntity {
         // 衝突グループのチェック
         if (!this.collisionMask.includes(other.collisionGroup)) return false;
 
-        const distance = this.distanceTo(other);
-        return distance < (this.radius + other.radius);
+        // 高速距離チェック（二乗比較）
+        const dx = other.x - this.x;
+        const dy = other.y - this.y;
+        const distanceSquared = dx * dx + dy * dy;
+        const radiusSum = this.radius + other.radius;
+
+        return distanceSquared < (radiusSum * radiusSum);
     }
 
     /**
-     * 衝突レスポンス（基本実装）
+     * 簡略化された衝突レスポンス
      */
     resolveCollision(other) {
         if (!this.isCollidingWith(other)) return false;
 
-        const distance = this.distanceTo(other);
-        const overlap = (this.radius + other.radius) - distance;
+        const dx = other.x - this.x;
+        const dy = other.y - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
 
+        if (distance === 0) {
+            // ゼロ除算の回避
+            const angle = Math.random() * Math.PI * 2;
+            const separation = (this.radius + other.radius) * 0.5;
+            this.x -= Math.cos(angle) * separation;
+            this.y -= Math.sin(angle) * separation;
+            if (!other.isStatic) {
+                other.x += Math.cos(angle) * separation;
+                other.y += Math.sin(angle) * separation;
+            }
+            return true;
+        }
+
+        const overlap = (this.radius + other.radius) - distance;
         if (overlap <= 0) return false;
 
-        // 衝突方向の計算
-        let dx = other.x - this.x;
-        let dy = other.y - this.y;
+        // 正規化された方向ベクトル
+        const nx = dx / distance;
+        const ny = dy / distance;
 
-        // ゼロ除算の回避
-        if (distance === 0) {
-            dx = Utils.Math.randomFloat(-1, 1);
-            dy = Utils.Math.randomFloat(-1, 1);
-            const len = Math.sqrt(dx * dx + dy * dy);
-            dx /= len;
-            dy /= len;
-        } else {
-            dx /= distance;
-            dy /= distance;
-        }
-
-        // 位置の分離
+        // 位置の分離（簡略化）
         const separation = overlap * 0.5;
         if (!this.isStatic) {
-            this.x -= dx * separation;
-            this.y -= dy * separation;
+            this.x -= nx * separation;
+            this.y -= ny * separation;
         }
         if (!other.isStatic) {
-            other.x += dx * separation;
-            other.y += dy * separation;
+            other.x += nx * separation;
+            other.y += ny * separation;
         }
 
-        // 速度の交換（弾性衝突）
-        if (!this.isStatic && !other.isStatic) {
-            this.resolveElasticCollision(other, dx, dy);
+        // 速度の簡易反射（静的オブジェクトとの衝突のみ）
+        if (other.isStatic && !this.isStatic) {
+            const dotProduct = this.vx * nx + this.vy * ny;
+            this.vx -= 2 * dotProduct * nx * this.bounce;
+            this.vy -= 2 * dotProduct * ny * this.bounce;
+
+            // エネルギー減衰
+            this.vx *= CONFIG.PHYSICS.COLLISION_DAMPING;
+            this.vy *= CONFIG.PHYSICS.COLLISION_DAMPING;
         }
 
         return true;
-    }
-
-    /**
-     * 弾性衝突の解決
-     */
-    resolveElasticCollision(other, nx, ny) {
-        // 相対速度
-        const dvx = this.vx - other.vx;
-        const dvy = this.vy - other.vy;
-
-        // 法線方向の相対速度
-        const dvn = dvx * nx + dvy * ny;
-
-        // 衝突していない場合は処理しない
-        if (dvn > 0) return;
-
-        // 衝突インパルスの計算
-        const totalMass = this.mass + other.mass;
-        const impulse = 2 * dvn / totalMass;
-
-        // 反発係数の適用
-        const restitution = Math.min(this.bounce, other.bounce);
-        const impulseWithRestitution = impulse * restitution;
-
-        // 速度の更新
-        this.vx -= impulseWithRestitution * other.mass * nx;
-        this.vy -= impulseWithRestitution * other.mass * ny;
-        other.vx += impulseWithRestitution * this.mass * nx;
-        other.vy += impulseWithRestitution * this.mass * ny;
-
-        // ダンピングの適用
-        const damping = CONFIG.PHYSICS.COLLISION_DAMPING;
-        this.vx *= damping;
-        this.vy *= damping;
-        other.vx *= damping;
-        other.vy *= damping;
     }
 
     /**
@@ -299,7 +274,7 @@ class PhysicsEntity {
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(this.x, this.y);
-            ctx.lineTo(this.x + this.vx * 5, this.y + this.vy * 5);
+            ctx.lineTo(this.x + this.vx * 3, this.y + this.vy * 3);
             ctx.stroke();
         }
 

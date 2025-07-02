@@ -177,9 +177,9 @@ class Ball extends PhysicsEntity {
                 this.createSlotHitEffect(points, slotColor);
 
                 // 得点更新
-                if (window.GameState) {
-                    window.GameState.updateScore(points);
-                    window.GameState.recordSlotHit(slotIndex, points);
+                if (GameState) {
+                    GameState.updateScore(points);
+                    GameState.recordSlotHit(slotIndex, points);
                 }
 
                 // 【修正】確実にボールを破棄
@@ -253,7 +253,7 @@ class Ball extends PhysicsEntity {
      * マルチボール生成
      */
     createMultiBall() {
-        if (window.GameState && window.GameState.balls.length < CONFIG.GAME.MAX_BALLS_ON_SCREEN) {
+        if (GameState && GameState.balls.length < CONFIG.GAME.MAX_BALLS_ON_SCREEN) {
             const angle1 = Math.random() * Math.PI * 2;
             const angle2 = angle1 + Math.PI;
             const speed = 3;
@@ -283,8 +283,8 @@ class Ball extends PhysicsEntity {
                 });
             }
 
-            window.GameState.addBall(ball1);
-            window.GameState.addBall(ball2);
+            GameState.addBall(ball1);
+            GameState.addBall(ball2);
 
             // エフェクト
             if (window.particleSystem) {
@@ -545,7 +545,7 @@ class Ball extends PhysicsEntity {
 
         // 消失エフェクト
         if (window.particleSystem) {
-            window.particleSystem.createExplosion(this.x, this.y, this.color, 0.8);
+            // window.particleSystem.createExplosion(this.x, this.y, this.color, 0.5);
         }
 
         // プール由来のボールの場合は、GameStateから削除する際にプールに返却される
