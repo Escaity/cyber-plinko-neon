@@ -53,7 +53,7 @@ class Ball extends PhysicsEntity {
         if (!this.isActive) return;
 
         // 基底クラスの物理更新
-        // super.update(deltaTime);
+        super.update(deltaTime);
 
         // トレイル更新
         this.updateTrail();
@@ -66,6 +66,9 @@ class Ball extends PhysicsEntity {
 
         // エネルギーレベル更新
         this.updateEnergyLevel();
+
+        // 【修正】ボールの自動破棄条件を追加
+        this.checkAutoDestroy();
 
         // スロット判定
         this.checkSlotCollision();
@@ -162,10 +165,11 @@ class Ball extends PhysicsEntity {
      * スロット衝突判定
      */
     checkSlotCollision() {
+        // スロットエリアに到達した場合
         if (this.y > CONFIG.GAME.CANVAS_HEIGHT - CONFIG.SLOT.HEIGHT - 20) {
             const slotIndex = Math.floor(this.x / (CONFIG.GAME.CANVAS_WIDTH / CONFIG.SLOT.COUNT));
 
-            if (slotIndex >= 0 && slotIndex < CONFIG.SLOT.COUNT && window.GameState) {
+            if (slotIndex >= 0 && slotIndex < CONFIG.SLOT.COUNT) {
                 const points = CONFIG.SLOT.POINTS[slotIndex];
                 const slotColor = Utils.Color.getSlotColorByPoints(points);
 
@@ -173,12 +177,19 @@ class Ball extends PhysicsEntity {
                 this.createSlotHitEffect(points, slotColor);
 
                 // 得点更新
-                window.GameState.updateScore(points);
+                if (window.GameState) {
+                    window.GameState.updateScore(points);
+                    window.GameState.recordSlotHit(slotIndex, points);
+                }
 
-                // ボールを非アクティブ化
+                // 【修正】確実にボールを破棄
+                console.log(`Ball hit slot ${slotIndex} for ${points} points`);
                 this.destroy();
+                return true;
             }
         }
+
+        return false;
     }
 
     /**
@@ -764,5 +775,47 @@ class Ball extends PhysicsEntity {
         }
 
         return false;
+    }
+
+    // 【新規追加】自動破棄チェック
+    checkAutoDestroy() {
+        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+
+        // 低速かつ下部エリアにいる場合
+        if (speed < 0.5 && this.y > CONFIG.GAME.CANVAS_HEIGHT * 0.8) {
+            this.lowSpeedTimer = (this.lowSpeedTimer || 0) + 1;
+
+            // 3秒間低速状態が続いたら破棄
+            if (this.lowSpeedTimer > 180) { // 60fps * 3秒
+                console.log('Ball destroyed due to low energy');
+                this.destroy();
+                return;
+            }
+        } else {
+            this.lowSpeedTimer = 0;
+        }
+
+        // 長時間存在している場合
+        if (this.age > 3600) { // 60fps * 60秒 = 1分
+            console.log('Ball destroyed due to age limit');
+            this.destroy();
+            return;
+        }
+
+        // ペグ下部エリアで停止している場合
+        if (this.y > CONFIG.PEG.START_Y + (CONFIG.PEG.ROWS * CONFIG.PEG.ROW_SPACING) + 50) {
+            if (speed < 1.0) {
+                this.stuckTimer = (this.stuckTimer || 0) + 1;
+
+                // 2秒間動かない場合は破棄
+                if (this.stuckTimer > 120) { // 60fps * 2秒
+                    console.log('Ball destroyed due to being stuck');
+                    this.destroy();
+                    return;
+                }
+            } else {
+                this.stuckTimer = 0;
+            }
+        }
     }
 }

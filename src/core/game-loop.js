@@ -286,9 +286,21 @@ class GameLoop {
                         ball.update(deltaTime);
                     }
 
-                    // 画面外チェック
-                    if (ball.y > CONFIG.GAME.CANVAS_HEIGHT + 100) {
+                    // 【追加】定期的な状態チェック
+                    const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+
+                    // 極低速ボールの強制削除
+                    if (speed < 0.1 && ball.y > CONFIG.GAME.CANVAS_HEIGHT * 0.9) {
+                        console.log('Force removing stuck ball');
                         this.removeBall(ball, i);
+                        continue;
+                    }
+
+                    // 画面外チェック
+                    if (ball.y > CONFIG.GAME.CANVAS_HEIGHT + 100 ||
+                        ball.x < -100 || ball.x > CONFIG.GAME.CANVAS_WIDTH + 100) {
+                        this.removeBall(ball, i);
+                        continue;
                     }
                 } else {
                     this.removeBall(ball, i);
@@ -297,6 +309,11 @@ class GameLoop {
                 console.error('Ball update error:', error);
                 this.removeBall(ball, i);
             }
+        }
+
+        // 【追加】定期的な強制クリーンアップ
+        if (this.frameCount % 1800 === 0) { // 30秒ごと
+            this.forceCleanupStaleBalls();
         }
     }
 
@@ -715,6 +732,36 @@ class GameLoop {
         };
 
         console.log('🐛 Debug mode enabled. Use window.gameLoopDebug');
+    }
+
+    // 【新規追加】停滞ボールの強制クリーンアップ
+    forceCleanupStaleBalls() {
+        const initialCount = GameState.balls.length;
+
+        GameState.balls = GameState.balls.filter(ball => {
+            if (!ball || !ball.isActive) return false;
+
+            const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+            const age = ball.age || 0;
+
+            // 古いボールまたは極低速ボールを削除
+            if (age > 3600 || (speed < 0.2 && ball.y > CONFIG.GAME.CANVAS_HEIGHT * 0.7)) {
+                if (ball.isPooled && window.poolManager) {
+                    const ballPool = window.poolManager.getPool('ball');
+                    if (ballPool) {
+                        ballPool.release(ball);
+                    }
+                }
+                return false;
+            }
+
+            return true;
+        });
+
+        const cleaned = initialCount - GameState.balls.length;
+        if (cleaned > 0) {
+            console.log(`Force cleaned ${cleaned} stale balls`);
+        }
     }
 }
 
