@@ -50,28 +50,28 @@ class PhysicsEntity {
         this.prevY = this.y;
 
         // 物理演算
-        this.vx += this.ax * deltaTime;
-        this.vy += this.ay * deltaTime;
-
-        // 重力の適用
-        if (this.gravity !== 0) {
-            this.vy += this.gravity * deltaTime;
-        }
-
-        // 摩擦の適用
-        if (this.friction !== 1) {
-            this.vx *= Math.pow(this.friction, deltaTime);
-            this.vy *= Math.pow(this.friction, deltaTime);
-        }
-
-        // 速度制限
-        const maxVel = CONFIG.PHYSICS.MAX_VELOCITY;
-        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-        if (speed > maxVel) {
-            const scale = maxVel / speed;
-            this.vx *= scale;
-            this.vy *= scale;
-        }
+        // this.vx += this.ax * deltaTime;
+        // this.vy += this.ay * deltaTime;
+        //
+        // // 重力の適用
+        // if (this.gravity !== 0) {
+        //     this.vy += this.gravity * deltaTime;
+        // }
+        //
+        // // 摩擦の適用
+        // if (this.friction !== 1) {
+        //     this.vx *= Math.pow(this.friction, deltaTime);
+        //     this.vy *= Math.pow(this.friction, deltaTime);
+        // }
+        //
+        // // 速度制限
+        // const maxVel = CONFIG.PHYSICS.MAX_VELOCITY;
+        // const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        // if (speed > maxVel) {
+        //     const scale = maxVel / speed;
+        //     this.vx *= scale;
+        //     this.vy *= scale;
+        // }
 
         // 位置更新
         this.x += this.vx * deltaTime;

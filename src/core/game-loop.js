@@ -1,22 +1,16 @@
-// ゲームループシステム
+// 再構築ゲームループ - シンプルで安定した実装
 class GameLoop {
     constructor() {
+        // 基本状態
         this.isRunning = false;
         this.isPaused = false;
         this.animationFrameId = null;
 
         // タイミング管理
         this.targetFPS = CONFIG.GAME.TARGET_FPS;
-        this.frameTime = 1000 / this.targetFPS;
         this.lastFrameTime = 0;
         this.deltaTime = 0;
-        this.accumulator = 0;
-        this.maxFrameTime = 1000 / 20; // 20FPS minimum
-
-        // フレーム制御
         this.frameCount = 0;
-        this.skipFrames = 0;
-        this.maxSkipFrames = 5;
 
         // システム参照
         this.renderer = null;
@@ -24,32 +18,24 @@ class GameLoop {
         this.performanceMonitor = null;
         this.inputHandler = null;
 
-        // 更新頻度制御
-        this.updateFrequency = CONFIG.PERFORMANCE.UPDATE_FREQUENCY;
-        this.updateCounter = 0;
-
-        // ゲーム状態
-        this.gameObjects = {
-            balls: [],
-            pegs: [],
-            slots: []
-        };
-
         // パフォーマンス統計
-        this.performanceStats = {
+        this.stats = {
             frameTime: 0,
             updateTime: 0,
             renderTime: 0,
-            physicsTime: 0,
-            particleTime: 0,
-            totalTime: 0
+            fps: 0,
+            frameCount: 0
         };
 
-        console.log('🔄 Game loop initialized');
+        // エラーハンドリング
+        this.errorCount = 0;
+        this.maxErrors = 5;
+
+        console.log('🔄 Game loop rebuilt and initialized');
     }
 
     /**
-     * ゲームループの初期化
+     * システム初期化
      */
     initialize(renderer, physicsEngine, performanceMonitor, inputHandler) {
         this.renderer = renderer;
@@ -57,12 +43,8 @@ class GameLoop {
         this.performanceMonitor = performanceMonitor;
         this.inputHandler = inputHandler;
 
-        // ゲームオブジェクトの参照設定
-        this.gameObjects.balls = GameState.balls;
-        this.gameObjects.pegs = GameState.pegs;
-        this.gameObjects.slots = GameState.slots;
-
         console.log('🎮 Game loop systems connected');
+        return true;
     }
 
     /**
@@ -78,9 +60,10 @@ class GameLoop {
         this.isPaused = false;
         this.lastFrameTime = performance.now();
         this.frameCount = 0;
+        this.errorCount = 0;
 
         console.log('▶️ Game loop started');
-        this.loop();
+        this.requestNextFrame();
     }
 
     /**
@@ -118,149 +101,230 @@ class GameLoop {
     }
 
     /**
-     * メインゲームループ
+     * メインループ
      */
     loop() {
-        if (!this.isRunning) return;
-
-        const currentTime = performance.now();
-        const frameStartTime = currentTime;
-
-        // パフォーマンス監視開始
-        if (this.performanceMonitor) {
-            this.performanceMonitor.startFrame();
-        }
-
-        // デルタタイム計算
-        this.deltaTime = Math.min(currentTime - this.lastFrameTime, this.maxFrameTime);
-        this.lastFrameTime = currentTime;
-
-        // 一時停止チェック
-        if (!this.isPaused && !GameState.isPaused) {
-            // フレームスキップ制御
-            if (this.shouldSkipFrame()) {
-                this.skipFrames++;
-                if (this.skipFrames < this.maxSkipFrames) {
-                    this.scheduleNextFrame();
-                    return;
-                }
-            }
-
-            this.skipFrames = 0;
-
-            // ゲーム更新
-            this.update(this.deltaTime);
-        }
-
-        // レンダリング（一時停止中でも実行）
-        this.render();
-
-        // フレーム統計更新
-        this.updateFrameStats(frameStartTime);
-
-        // パフォーマンス監視終了
-        if (this.performanceMonitor) {
-            this.performanceMonitor.endFrame();
-        }
-
-        // 次フレームのスケジュール
-        this.scheduleNextFrame();
-    }
-
-    /**
-     * ゲーム状態更新
-     */
-    update(deltaTime) {
-        const updateStartTime = performance.now();
-
-        // 更新頻度制御
-        this.updateCounter++;
-        if (this.updateCounter % this.updateFrequency !== 0) {
+        if (!this.isRunning) {
             return;
         }
 
-        // 入力処理
-        if (this.inputHandler) {
-            this.inputHandler.update();
+        try {
+            const currentTime = performance.now();
+            this.deltaTime = currentTime - this.lastFrameTime;
+            this.lastFrameTime = currentTime;
+            this.frameCount++;
+
+            // パフォーマンス監視開始
+            this.stats.frameTime = currentTime;
+
+            // 一時停止チェック
+            if (!this.isPaused && !this.isGamePaused()) {
+                this.update(this.deltaTime);
+            }
+
+            // レンダリング
+            this.render();
+
+            // 統計更新
+            this.updateStats(currentTime);
+
+            // エラーリセット（正常フレーム）
+            if (this.errorCount > 0) {
+                this.errorCount = Math.max(0, this.errorCount - 1);
+            }
+
+        } catch (error) {
+            this.handleError(error);
         }
 
-        // 物理演算
-        this.updatePhysics(deltaTime);
-
-        // ゲームオブジェクト更新
-        this.updateGameObjects(deltaTime);
-
-        // パーティクルシステム更新
-        this.updateParticles(deltaTime);
-
-        // エフェクト更新
-        this.updateEffects(deltaTime);
-
-        // ゲーム状態管理
-        this.updateGameState(deltaTime);
-
-        // オブジェクトプール管理
-        this.updateObjectPools();
-
-        // パフォーマンス統計
-        this.performanceStats.updateTime = performance.now() - updateStartTime;
+        // 次フレーム予約
+        this.requestNextFrame();
     }
 
     /**
-     * 物理演算更新
+     * ゲーム更新
+     */
+    update(deltaTime) {
+        const updateStart = performance.now();
+
+        try {
+            // 入力処理
+            this.updateInput();
+
+            // 物理演算
+            this.updatePhysics(deltaTime);
+
+            // ゲームオブジェクト更新
+            this.updateGameObjects(deltaTime);
+
+            // パーティクル更新
+            this.updateParticles();
+
+            // エフェクト更新
+            this.updateEffects();
+
+            // ゲーム状態更新
+            this.updateGameState();
+
+        } catch (error) {
+            console.error('Update error:', error);
+            this.errorCount++;
+        }
+
+        this.stats.updateTime = performance.now() - updateStart;
+    }
+
+    /**
+     * 入力更新
+     */
+    updateInput() {
+        if (this.inputHandler && this.inputHandler.update) {
+            this.inputHandler.update();
+        }
+    }
+
+    /**
+     * 物理更新
      */
     updatePhysics(deltaTime) {
         if (!this.physicsEngine) return;
 
-        const physicsStartTime = performance.now();
+        try {
+            // アクティブオブジェクトを取得
+            const objects = this.getActiveObjects();
 
-        // アクティブなオブジェクトのみを物理演算対象とする
-        const activeObjects = [
-            ...this.gameObjects.balls.filter(ball => ball.isActive),
-            ...this.gameObjects.pegs.filter(peg => peg.isActive),
-            ...this.gameObjects.slots.filter(slot => slot.isActive)
-        ];
+            if (objects.length > 0) {
+                this.physicsEngine.update(objects, deltaTime);
+            }
+        } catch (error) {
+            console.error('Physics update error:', error);
+        }
+    }
 
-        // 物理演算実行
-        this.physicsEngine.update(activeObjects, deltaTime);
+    /**
+     * アクティブオブジェクト取得
+     */
+    getActiveObjects() {
+        const objects = [];
 
-        this.performanceStats.physicsTime = performance.now() - physicsStartTime;
+        try {
+            // ボール
+            if (GameState.balls && Array.isArray(GameState.balls)) {
+                GameState.balls.forEach(ball => {
+                    if (ball && ball.isActive) {
+                        objects.push(ball);
+                    }
+                });
+            }
+
+            // ペグ
+            if (GameState.pegs && Array.isArray(GameState.pegs)) {
+                GameState.pegs.forEach(peg => {
+                    if (peg && peg.isActive) {
+                        objects.push(peg);
+                    }
+                });
+            }
+
+            // スロット
+            if (GameState.slots && Array.isArray(GameState.slots)) {
+                GameState.slots.forEach(slot => {
+                    if (slot && slot.isActive) {
+                        objects.push(slot);
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Error getting active objects:', error);
+        }
+
+        return objects;
     }
 
     /**
      * ゲームオブジェクト更新
      */
     updateGameObjects(deltaTime) {
-        // ボールの更新
-        this.updateBalls(deltaTime);
+        try {
+            // ボール更新
+            this.updateBalls(deltaTime);
 
-        // ペグの更新
-        this.updatePegs(deltaTime);
+            // ペグ更新
+            this.updatePegs(deltaTime);
 
-        // スロットの更新
-        this.updateSlots(deltaTime);
+            // スロット更新
+            this.updateSlots(deltaTime);
 
-        // 非アクティブオブジェクトのクリーンアップ
-        this.cleanupInactiveObjects();
+            // クリーンアップ
+            this.cleanupObjects();
+
+        } catch (error) {
+            console.error('Game objects update error:', error);
+        }
     }
 
     /**
      * ボール更新
      */
     updateBalls(deltaTime) {
-        for (let i = this.gameObjects.balls.length - 1; i >= 0; i--) {
-            const ball = this.gameObjects.balls[i];
+        if (!GameState.balls || !Array.isArray(GameState.balls)) {
+            return;
+        }
 
-            if (ball.isActive) {
-                ball.update(deltaTime);
+        for (let i = GameState.balls.length - 1; i >= 0; i--) {
+            const ball = GameState.balls[i];
 
-                // 画面外チェック
-                if (ball.y > CONFIG.GAME.CANVAS_HEIGHT + 100) {
+            if (!ball) {
+                GameState.balls.splice(i, 1);
+                continue;
+            }
+
+            try {
+                if (ball.isActive) {
+                    // ボール更新
+                    if (ball.update) {
+                        ball.update(deltaTime);
+                    }
+
+                    // 画面外チェック
+                    if (ball.y > CONFIG.GAME.CANVAS_HEIGHT + 100) {
+                        this.removeBall(ball, i);
+                    }
+                } else {
                     this.removeBall(ball, i);
                 }
-            } else {
+            } catch (error) {
+                console.error('Ball update error:', error);
                 this.removeBall(ball, i);
             }
+        }
+    }
+
+    /**
+     * ボール削除
+     */
+    removeBall(ball, index) {
+        try {
+            // プールに返却
+            if (ball && ball.isPooled && window.poolManager) {
+                const ballPool = window.poolManager.getPool('ball');
+                if (ballPool) {
+                    ballPool.release(ball);
+                }
+            }
+
+            // 配列から削除
+            GameState.balls.splice(index, 1);
+
+            // ゲーム終了チェック
+            if (GameState.ballCount <= 0 && GameState.balls.length === 0) {
+                this.handleGameEnd();
+            }
+
+        } catch (error) {
+            console.error('Error removing ball:', error);
+            // 最低限の削除
+            GameState.balls.splice(index, 1);
         }
     }
 
@@ -268,9 +332,17 @@ class GameLoop {
      * ペグ更新
      */
     updatePegs(deltaTime) {
-        this.gameObjects.pegs.forEach(peg => {
-            if (peg.update) {
-                peg.update(deltaTime);
+        if (!GameState.pegs || !Array.isArray(GameState.pegs)) {
+            return;
+        }
+
+        GameState.pegs.forEach(peg => {
+            if (peg && peg.update) {
+                try {
+                    peg.update(deltaTime);
+                } catch (error) {
+                    console.error('Peg update error:', error);
+                }
             }
         });
     }
@@ -279,110 +351,86 @@ class GameLoop {
      * スロット更新
      */
     updateSlots(deltaTime) {
-        this.gameObjects.slots.forEach(slot => {
-            if (slot.update) {
-                slot.update(deltaTime);
+        if (!GameState.slots || !Array.isArray(GameState.slots)) {
+            return;
+        }
+
+        GameState.slots.forEach(slot => {
+            if (slot && slot.update) {
+                try {
+                    slot.update(deltaTime);
+                } catch (error) {
+                    console.error('Slot update error:', error);
+                }
             }
         });
     }
 
     /**
-     * ボール削除
-     */
-    removeBall(ball, index) {
-        // プールに返却
-        const ballPool = window.poolManager?.getPool('ball');
-        if (ballPool) {
-            ballPool.release(ball);
-        }
-
-        // 配列から削除
-        this.gameObjects.balls.splice(index, 1);
-
-        // ゲーム終了チェック
-        if (GameState.ballCount <= 0 && this.gameObjects.balls.length === 0) {
-            this.handleGameEnd();
-        }
-    }
-
-    /**
      * パーティクル更新
      */
-    updateParticles(deltaTime) {
-        if (!window.particleSystem) return;
-
-        const particleStartTime = performance.now();
-
-        window.particleSystem.update();
-
-        // プールを使用した最適化
-        const particlePool = window.poolManager?.getPool('particle');
-        if (particlePool) {
-            window.particleSystem.particles = particlePool.updateAndCleanup(
-                window.particleSystem.particles
-            );
-        }
-
-        this.performanceStats.particleTime = performance.now() - particleStartTime;
-    }
-
-    /**
-     * エフェクト更新
-     */
-    updateEffects(deltaTime) {
-        // 画面揺れ
-        if (window.screenShake) {
-            window.screenShake.update();
-        }
-
-        // その他のエフェクト
-        // ...
-    }
-
-    /**
-     * ゲーム状態管理
-     */
-    updateGameState(deltaTime) {
-        // パフォーマンス統計の更新
-        GameState.updatePerformanceStats();
-
-        // ゲーム終了条件のチェック
-        this.checkGameEndConditions();
-
-        // 自動保存（一定間隔）
-        this.handleAutoSave();
-    }
-
-    /**
-     * オブジェクトプール管理
-     */
-    updateObjectPools() {
-        if (window.poolManager) {
-            // 定期クリーンアップ
-            window.poolManager.performPeriodicCleanup();
-
-            // メモリ圧迫時の緊急クリーンアップ
-            const memoryUsage = Utils.Performance.getMemoryUsage();
-            if (memoryUsage && memoryUsage.used > memoryUsage.limit * 0.9) {
-                window.poolManager.emergencyCleanup();
+    updateParticles() {
+        if (window.particleSystem && window.particleSystem.update) {
+            try {
+                window.particleSystem.update();
+            } catch (error) {
+                console.error('Particle system error:', error);
             }
         }
     }
 
     /**
-     * 非アクティブオブジェクトのクリーンアップ
+     * エフェクト更新
      */
-    cleanupInactiveObjects() {
-        // 低頻度でクリーンアップ実行
-        if (this.frameCount % 300 === 0) { // 5秒ごと（60FPS想定）
-            const initialBallCount = this.gameObjects.balls.length;
+    updateEffects() {
+        try {
+            // 画面揺れ
+            if (window.screenShake && window.screenShake.update) {
+                window.screenShake.update();
+            }
 
-            // 非アクティブボールの削除
-            GameState.cleanupInactiveBalls();
+            // プール管理
+            if (window.poolManager && window.poolManager.performPeriodicCleanup) {
+                window.poolManager.performPeriodicCleanup();
+            }
+        } catch (error) {
+            console.error('Effects update error:', error);
+        }
+    }
 
-            const cleanedCount = initialBallCount - this.gameObjects.balls.length;
-            if (cleanedCount > 0) {
-                console.log(`🧹 Cleaned up ${cleanedCount} inactive balls`);
+    /**
+     * ゲーム状態更新
+     */
+    updateGameState() {
+        try {
+            // パフォーマンス統計更新
+            if (GameState.updatePerformanceStats) {
+                GameState.updatePerformanceStats();
+            }
+
+            // 自動保存
+            if (this.frameCount % (30 * 60) === 0) { // 30秒ごと
+                if (GameState.saveGameData) {
+                    GameState.saveGameData();
+                }
+            }
+        } catch (error) {
+            console.error('Game state update error:', error);
+        }
+    }
+
+    /**
+     * オブジェクトクリーンアップ
+     */
+    cleanupObjects() {
+        // 定期的なクリーンアップ
+        if (this.frameCount % 300 === 0) { // 5秒ごと
+            try {
+                if (GameState.cleanupInactiveBalls) {
+                    GameState.cleanupInactiveBalls();
+                }
+            } catch (error) {
+                console.error('Cleanup error:', error);
             }
         }
     }
@@ -391,106 +439,138 @@ class GameLoop {
      * レンダリング
      */
     render() {
-        if (!this.renderer) return;
+        const renderStart = performance.now();
 
-        const renderStartTime = performance.now();
+        try {
+            if (this.renderer && this.renderer.render) {
+                this.renderer.render();
+            }
 
-        // メインレンダリング
-        this.renderer.render();
+            // デバッグ情報
+            if (CONFIG.DEBUG.SHOW_FPS) {
+                this.drawDebugInfo();
+            }
 
-        // デバッグ情報の描画
-        if (CONFIG.DEBUG.SHOW_FPS) {
-            this.drawDebugInfo();
+        } catch (error) {
+            console.error('Render error:', error);
+            this.errorCount++;
         }
 
-        this.performanceStats.renderTime = performance.now() - renderStartTime;
+        this.stats.renderTime = performance.now() - renderStart;
     }
 
     /**
      * デバッグ情報描画
      */
     drawDebugInfo() {
-        const ctx = this.renderer.ctx;
+        if (!this.renderer || !this.renderer.ctx) return;
 
-        // 物理エンジンのデバッグ情報
-        if (this.physicsEngine && this.physicsEngine.drawDebugInfo) {
-            this.physicsEngine.drawDebugInfo(ctx);
-        }
+        try {
+            const ctx = this.renderer.ctx;
+            const stats = this.getLoopStats();
 
-        // 入力ハンドラーのデバッグ情報
-        if (this.inputHandler && this.inputHandler.drawDebugInfo) {
-            this.inputHandler.drawDebugInfo(ctx);
-        }
+            const lines = [
+                `FPS: ${stats.fps}`,
+                `Frame: ${stats.frameTime.toFixed(1)}ms`,
+                `Update: ${stats.updateTime.toFixed(1)}ms`,
+                `Render: ${stats.renderTime.toFixed(1)}ms`,
+                `Balls: ${GameState.balls ? GameState.balls.length : 0}`,
+                `Errors: ${this.errorCount}`
+            ];
 
-        // パフォーマンス統計
-        this.drawPerformanceStats(ctx);
-    }
+            ctx.save();
+            ctx.font = '10px Share Tech Mono';
+            ctx.fillStyle = CONFIG.COLORS.PRIMARY;
+            ctx.textAlign = 'left';
+            ctx.globalAlpha = 0.8;
 
-    /**
-     * パフォーマンス統計描画
-     */
-    drawPerformanceStats(ctx) {
-        const stats = this.performanceStats;
-        const lines = [
-            `Frame: ${stats.frameTime.toFixed(1)}ms`,
-            `Update: ${stats.updateTime.toFixed(1)}ms`,
-            `Physics: ${stats.physicsTime.toFixed(1)}ms`,
-            `Render: ${stats.renderTime.toFixed(1)}ms`,
-            `Particles: ${stats.particleTime.toFixed(1)}ms`,
-            `Objects: ${this.gameObjects.balls.length}B ${this.gameObjects.pegs.length}P`
-        ];
+            // 背景
+            const bgWidth = 120;
+            const bgHeight = lines.length * 12 + 10;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(5, CONFIG.GAME.CANVAS_HEIGHT - bgHeight - 5, bgWidth, bgHeight);
 
-        ctx.save();
-        ctx.font = '10px Share Tech Mono';
-        ctx.fillStyle = CONFIG.COLORS.PRIMARY;
-        ctx.textAlign = 'left';
-        ctx.globalAlpha = 0.8;
+            // テキスト
+            ctx.fillStyle = CONFIG.COLORS.PRIMARY;
+            lines.forEach((line, index) => {
+                ctx.fillText(line, 10, CONFIG.GAME.CANVAS_HEIGHT - bgHeight + 15 + index * 12);
+            });
 
-        // 背景
-        const bgWidth = 120;
-        const bgHeight = lines.length * 12 + 10;
-        ctx.fillStyle = Utils.Color.addAlpha('#000000', 0.7);
-        ctx.fillRect(5, CONFIG.GAME.CANVAS_HEIGHT - bgHeight - 5, bgWidth, bgHeight);
-
-        // テキスト
-        ctx.fillStyle = CONFIG.COLORS.PRIMARY;
-        lines.forEach((line, index) => {
-            ctx.fillText(line, 10, CONFIG.GAME.CANVAS_HEIGHT - bgHeight + 15 + index * 12);
-        });
-
-        ctx.restore();
-    }
-
-    /**
-     * フレーム統計更新
-     */
-    updateFrameStats(frameStartTime) {
-        this.frameCount++;
-        this.performanceStats.frameTime = performance.now() - frameStartTime;
-        this.performanceStats.totalTime += this.performanceStats.frameTime;
-
-        // FPS計算
-        if (this.performanceMonitor) {
-            Utils.Performance.updateFPS();
+            ctx.restore();
+        } catch (error) {
+            console.error('Debug info draw error:', error);
         }
     }
 
     /**
-     * フレームスキップ判定
+     * 統計更新
      */
-    shouldSkipFrame() {
-        // パフォーマンス低下時のフレームスキップ
-        const avgFrameTime = this.performanceStats.totalTime / this.frameCount;
-        return avgFrameTime > this.frameTime * 1.5; // 目標の1.5倍を超えた場合
+    updateStats(currentTime) {
+        this.stats.frameTime = currentTime - this.stats.frameTime;
+        this.stats.frameCount = this.frameCount;
+
+        // FPS計算（1秒ごと）
+        if (this.frameCount % 60 === 0) {
+            this.stats.fps = Math.round(1000 / (this.stats.frameTime || 16.67));
+
+            // UI更新
+            if (typeof Utils !== 'undefined' && Utils.DOM && Utils.DOM.setText) {
+                Utils.DOM.setText('fps', this.stats.fps);
+            }
+        }
     }
 
     /**
-     * 次フレームのスケジュール
+     * エラーハンドリング
      */
-    scheduleNextFrame() {
-        if (this.isRunning) {
-            this.animationFrameId = requestAnimationFrame(() => this.loop());
+    handleError(error) {
+        this.errorCount++;
+        console.error(`Game loop error #${this.errorCount}:`, error);
+
+        if (this.errorCount >= this.maxErrors) {
+            console.error('🚨 Too many errors, stopping game loop');
+            this.emergencyStop();
         }
+    }
+
+    /**
+     * 緊急停止
+     */
+    emergencyStop() {
+        this.stop();
+
+        // エラー表示
+        const errorDiv = document.createElement('div');
+        errorDiv.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 0, 0, 0.9);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Share Tech Mono', monospace;
+            text-align: center;
+            z-index: 10000;
+        `;
+
+        errorDiv.innerHTML = `
+            <h3>⚠️ ゲームエラー</h3>
+            <p>システムエラーが発生しました。</p>
+            <p>エラー数: ${this.errorCount}</p>
+            <button onclick="location.reload()" style="
+                background: white;
+                color: red;
+                border: none;
+                padding: 10px 20px;
+                margin-top: 10px;
+                border-radius: 5px;
+                cursor: pointer;
+            ">再読み込み</button>
+        `;
+
+        document.body.appendChild(errorDiv);
     }
 
     /**
@@ -500,65 +580,51 @@ class GameLoop {
         if (GameState.isGameOver) return;
 
         console.log('🎯 Game ended');
-        GameState.endGame();
 
-        // 終了エフェクト
-        this.playGameEndEffects();
+        try {
+            if (GameState.endGame) {
+                GameState.endGame();
+            }
+
+            // 終了エフェクト
+            this.playGameEndEffects();
+        } catch (error) {
+            console.error('Game end error:', error);
+        }
     }
 
     /**
      * ゲーム終了エフェクト
      */
     playGameEndEffects() {
-        // 大きな爆発エフェクト
-        if (window.particleSystem) {
-            const centerX = CONFIG.GAME.CANVAS_WIDTH / 2;
-            const centerY = CONFIG.GAME.CANVAS_HEIGHT / 2;
-
-            window.particleSystem.createExplosion(
-                centerX, centerY, CONFIG.COLORS.PRIMARY, 5.0
-            );
-
-            // 複数の小爆発
-            for (let i = 0; i < 5; i++) {
-                setTimeout(() => {
-                    const x = centerX + (Math.random() - 0.5) * 200;
-                    const y = centerY + (Math.random() - 0.5) * 200;
-                    window.particleSystem.createExplosion(x, y, CONFIG.COLORS.SECONDARY, 2.0);
-                }, i * 300);
+        try {
+            if (window.particleSystem) {
+                const centerX = CONFIG.GAME.CANVAS_WIDTH / 2;
+                const centerY = CONFIG.GAME.CANVAS_HEIGHT / 2;
+                window.particleSystem.createExplosion(centerX, centerY, CONFIG.COLORS.PRIMARY, 3.0);
             }
-        }
 
-        // 画面揺れ
-        if (window.screenShake) {
-            window.screenShake.shake(8, 60);
+            if (window.screenShake) {
+                window.screenShake.shake(5, 40);
+            }
+        } catch (error) {
+            console.error('Game end effects error:', error);
         }
     }
 
     /**
-     * ゲーム終了条件チェック
+     * ゲーム一時停止状態チェック
      */
-    checkGameEndConditions() {
-        // ボールが残っておらず、投下可能なボールもない場合
-        if (GameState.ballCount <= 0 && this.gameObjects.balls.length === 0) {
-            if (!GameState.isGameOver) {
-                this.handleGameEnd();
-            }
-        }
-
-        // パフォーマンス低下による強制終了
-        if (this.performanceStats.frameTime > 100) { // 100ms = 10FPS以下
-            console.warn('⚠️ Performance too low, considering game end');
-        }
+    isGamePaused() {
+        return GameState && (GameState.isPaused || GameState.isGameOver);
     }
 
     /**
-     * 自動保存処理
+     * 次フレーム要求
      */
-    handleAutoSave() {
-        // 30秒ごとに自動保存
-        if (this.frameCount % (30 * this.targetFPS) === 0) {
-            GameState.saveGameData();
+    requestNextFrame() {
+        if (this.isRunning) {
+            this.animationFrameId = requestAnimationFrame(() => this.loop());
         }
     }
 
@@ -566,226 +632,106 @@ class GameLoop {
      * 品質調整
      */
     adjustQuality(qualityLevel) {
-        // レンダリング品質調整
-        if (this.renderer) {
-            this.renderer.adjustQuality(qualityLevel);
+        try {
+            // レンダリング品質
+            if (this.renderer && this.renderer.adjustQuality) {
+                this.renderer.adjustQuality(qualityLevel);
+            }
+
+            // パーティクル数
+            CONFIG.PERFORMANCE.MAX_PARTICLES = Math.floor(200 * qualityLevel);
+
+            console.log(`Quality adjusted to ${(qualityLevel * 100).toFixed(0)}%`);
+        } catch (error) {
+            console.error('Quality adjustment error:', error);
         }
-
-        // 更新頻度調整
-        this.updateFrequency = qualityLevel > 0.7 ? 1 : 2;
-
-        // パーティクル数調整
-        CONFIG.PERFORMANCE.MAX_PARTICLES = Math.floor(200 * qualityLevel);
-
-        console.log(`🎚️ Quality adjusted to ${(qualityLevel * 100).toFixed(0)}%`);
-    }
-
-    /**
-     * フレームレート制限設定
-     */
-    setTargetFPS(fps) {
-        this.targetFPS = Math.max(20, Math.min(120, fps));
-        this.frameTime = 1000 / this.targetFPS;
-
-        console.log(`🎯 Target FPS set to ${this.targetFPS}`);
     }
 
     /**
      * ゲームループ統計取得
      */
     getLoopStats() {
-        const avgFrameTime = this.frameCount > 0 ?
-            this.performanceStats.totalTime / this.frameCount : 0;
-
         return {
             frameCount: this.frameCount,
+            fps: this.stats.fps,
+            frameTime: this.stats.frameTime,
+            updateTime: this.stats.updateTime,
+            renderTime: this.stats.renderTime,
             isRunning: this.isRunning,
             isPaused: this.isPaused,
-            targetFPS: this.targetFPS,
-            averageFrameTime: avgFrameTime,
-            currentFPS: avgFrameTime > 0 ? 1000 / avgFrameTime : 0,
-            skipFrames: this.skipFrames,
-            updateFrequency: this.updateFrequency,
-            performance: { ...this.performanceStats },
+            errorCount: this.errorCount,
             objectCounts: {
-                balls: this.gameObjects.balls.length,
-                pegs: this.gameObjects.pegs.length,
-                slots: this.gameObjects.slots.length,
-                particles: window.particleSystem ? window.particleSystem.getParticleCount() : 0
+                balls: GameState.balls ? GameState.balls.length : 0,
+                pegs: GameState.pegs ? GameState.pegs.length : 0,
+                slots: GameState.slots ? GameState.slots.length : 0
             }
         };
     }
 
     /**
-     * 緊急停止
-     */
-    emergencyStop() {
-        console.warn('🚨 Emergency stop triggered');
-
-        this.stop();
-
-        // エラー状態の表示
-        const errorOverlay = document.createElement('div');
-        errorOverlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(255, 0, 0, 0.8);
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: 'Share Tech Mono', monospace;
-            font-size: 18px;
-            z-index: 10000;
-            text-align: center;
-        `;
-
-        errorOverlay.innerHTML = `
-            <div>
-                <h2>⚠️ ゲームが緊急停止しました</h2>
-                <p>パフォーマンスの問題が発生しました。</p>
-                <button onclick="location.reload()" style="
-                    background: white;
-                    color: red;
-                    border: none;
-                    padding: 10px 20px;
-                    font-family: inherit;
-                    border-radius: 5px;
-                    cursor: pointer;
-                    margin-top: 20px;
-                ">ページを再読み込み</button>
-            </div>
-        `;
-
-        document.body.appendChild(errorOverlay);
-    }
-
-    /**
-     * パフォーマンス監視
-     */
-    monitorPerformance() {
-        // メモリ使用量チェック
-        const memoryUsage = Utils.Performance.getMemoryUsage();
-        if (memoryUsage && memoryUsage.used > memoryUsage.limit * 0.95) {
-            console.warn('🧠 Memory usage critical:', memoryUsage);
-            this.handleMemoryPressure();
-        }
-
-        // フレームレート監視
-        const avgFrameTime = this.performanceStats.totalTime / this.frameCount;
-        if (avgFrameTime > this.frameTime * 3) { // 目標の3倍を超えた場合
-            console.warn('📉 Frame rate critically low');
-            this.handleLowFrameRate();
-        }
-    }
-
-    /**
-     * メモリ圧迫時の処理
-     */
-    handleMemoryPressure() {
-        // 緊急クリーンアップ
-        if (window.poolManager) {
-            window.poolManager.emergencyCleanup();
-        }
-
-        // パーティクル数削減
-        if (window.particleSystem) {
-            window.particleSystem.clear();
-        }
-
-        // 品質低下
-        this.adjustQuality(0.3);
-
-        console.log('🧹 Emergency memory cleanup performed');
-    }
-
-    /**
-     * 低フレームレート時の処理
-     */
-    handleLowFrameRate() {
-        // 更新頻度削減
-        this.updateFrequency = Math.max(this.updateFrequency, 3);
-
-        // エフェクト無効化
-        CONFIG.EFFECTS.ENABLE_TRAILS = false;
-        CONFIG.EFFECTS.ENABLE_GLOW = false;
-
-        // パーティクル数削減
-        CONFIG.PERFORMANCE.MAX_PARTICLES = 25;
-
-        console.log('⚡ Low frame rate optimizations applied');
-    }
-
-    /**
-     * デバッグコマンド
-     */
-    enableDebugMode() {
-        // デバッグ用のグローバル関数を追加
-        window.gameLoop = {
-            stats: () => this.getLoopStats(),
-            adjustQuality: (level) => this.adjustQuality(level),
-            setFPS: (fps) => this.setTargetFPS(fps),
-            emergencyStop: () => this.emergencyStop(),
-            pause: () => this.pause(),
-            resume: () => this.resume(),
-            restart: () => {
-                this.stop();
-                setTimeout(() => this.start(), 100);
-            }
-        };
-
-        console.log('🐛 Debug mode enabled. Use window.gameLoop for debugging.');
-    }
-
-    /**
-     * リセット処理
+     * リセット
      */
     reset() {
-        // 統計リセット
         this.frameCount = 0;
-        this.skipFrames = 0;
-        this.updateCounter = 0;
-        this.performanceStats = {
+        this.errorCount = 0;
+        this.stats = {
             frameTime: 0,
             updateTime: 0,
             renderTime: 0,
-            physicsTime: 0,
-            particleTime: 0,
-            totalTime: 0
+            fps: 0,
+            frameCount: 0
         };
-
-        // ゲームオブジェクト参照更新
-        this.gameObjects.balls = GameState.balls;
-        this.gameObjects.pegs = GameState.pegs;
-        this.gameObjects.slots = GameState.slots;
 
         console.log('🔄 Game loop reset');
     }
 
     /**
-     * 破棄処理
+     * 破棄
      */
     destroy() {
         this.stop();
 
-        // 参照クリア
         this.renderer = null;
         this.physicsEngine = null;
         this.performanceMonitor = null;
         this.inputHandler = null;
 
-        this.gameObjects = {
-            balls: [],
-            pegs: [],
-            slots: []
+        console.log('💥 Game loop destroyed');
+    }
+
+    /**
+     * デバッグコマンド有効化
+     */
+    enableDebugMode() {
+        window.gameLoopDebug = {
+            stats: () => this.getLoopStats(),
+            pause: () => this.pause(),
+            resume: () => this.resume(),
+            stop: () => this.stop(),
+            start: () => this.start(),
+            adjustQuality: (level) => this.adjustQuality(level),
+            forceError: () => { throw new Error('Debug: Forced error'); },
+            reset: () => this.reset()
         };
 
-        console.log('💥 Game loop destroyed');
+        console.log('🐛 Debug mode enabled. Use window.gameLoopDebug');
     }
 }
 
 // グローバルゲームループインスタンス
 window.gameLoop = null;
+
+// 初期化ヘルパー
+function initializeGameLoop() {
+    if (window.gameLoop) {
+        window.gameLoop.destroy();
+    }
+
+    window.gameLoop = new GameLoop();
+
+    if (CONFIG.DEBUG.SHOW_FPS) {
+        window.gameLoop.enableDebugMode();
+    }
+
+    return window.gameLoop;
+}

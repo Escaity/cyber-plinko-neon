@@ -1,4 +1,4 @@
-// ボールクラス - サイバーパンクスタイル
+// 修正版ボールクラス - プール統合とリセット処理強化
 class Ball extends PhysicsEntity {
     constructor(x, y, options = {}) {
         super(x, y, {
@@ -36,6 +36,9 @@ class Ball extends PhysicsEntity {
         this.lastCollisionTime = 0;
         this.collisionCount = 0;
 
+        // プール管理用フラグ
+        this.isPooled = false;
+
         // サウンドと振動（将来の拡張用）
         this.soundEnabled = CONFIG.AUDIO.ENABLE_SOUND;
 
@@ -50,7 +53,7 @@ class Ball extends PhysicsEntity {
         if (!this.isActive) return;
 
         // 基底クラスの物理更新
-        super.update(deltaTime);
+        // super.update(deltaTime);
 
         // トレイル更新
         this.updateTrail();
@@ -244,15 +247,30 @@ class Ball extends PhysicsEntity {
             const angle2 = angle1 + Math.PI;
             const speed = 3;
 
-            const ball1 = new Ball(this.x, this.y, {
-                vx: Math.cos(angle1) * speed,
-                vy: Math.sin(angle1) * speed
-            });
+            // プールからボールを取得
+            const ballPool = window.poolManager?.getPool('ball');
 
-            const ball2 = new Ball(this.x, this.y, {
-                vx: Math.cos(angle2) * speed,
-                vy: Math.sin(angle2) * speed
-            });
+            let ball1, ball2;
+
+            if (ballPool) {
+                ball1 = ballPool.acquire(this.x, this.y, {
+                    vx: Math.cos(angle1) * speed,
+                    vy: Math.sin(angle1) * speed
+                });
+                ball2 = ballPool.acquire(this.x, this.y, {
+                    vx: Math.cos(angle2) * speed,
+                    vy: Math.sin(angle2) * speed
+                });
+            } else {
+                ball1 = new Ball(this.x, this.y, {
+                    vx: Math.cos(angle1) * speed,
+                    vy: Math.sin(angle1) * speed
+                });
+                ball2 = new Ball(this.x, this.y, {
+                    vx: Math.cos(angle2) * speed,
+                    vy: Math.sin(angle2) * speed
+                });
+            }
 
             window.GameState.addBall(ball1);
             window.GameState.addBall(ball2);
@@ -461,9 +479,10 @@ class Ball extends PhysicsEntity {
     }
 
     /**
-     * 状態のリセット
+     * 状態のリセット（プール用・強化版）
      */
     reset(x, y) {
+        // 位置とベクトルのリセット
         this.x = x;
         this.y = y;
         this.prevX = x;
@@ -472,7 +491,12 @@ class Ball extends PhysicsEntity {
         this.vy = 0;
         this.ax = 0;
         this.ay = 0;
+
+        // 状態フラグのリセット
         this.isActive = true;
+        this.canCollide = true;
+
+        // ビジュアル要素のリセット
         this.trail = [];
         this.collisionCount = 0;
         this.isCharged = false;
@@ -480,13 +504,30 @@ class Ball extends PhysicsEntity {
         this.scale = 1.0;
         this.targetScale = 1.0;
         this.rotationAngle = 0;
+        this.rotationSpeed = 0;
+        this.energyLevel = 1.0;
+
+        // 色のリセット
         this.color = Utils.Color.generateRandomCyberColor();
         this.baseColor = this.color;
         this.glowColor = this.color;
+        this.glowIntensity = CONFIG.BALL.GLOW_INTENSITY;
+
+        // パルス効果のリセット
+        this.pulsePhase = Math.random() * Math.PI * 2;
+
+        // 時間関連のリセット
+        this.lastCollisionTime = 0;
+        this.age = 0;
+
+        // プール用フラグの設定
+        this.isPooled = true;
+
+        console.log('Ball reset for pool reuse');
     }
 
     /**
-     * ボールの破棄
+     * ボールの破棄（プール対応版）
      */
     destroy() {
         this.isActive = false;
@@ -495,10 +536,13 @@ class Ball extends PhysicsEntity {
         if (window.particleSystem) {
             window.particleSystem.createExplosion(this.x, this.y, this.color, 0.8);
         }
+
+        // プール由来のボールの場合は、GameStateから削除する際にプールに返却される
+        // 直接プールに返却はしない（二重解放を防ぐため）
     }
 
     /**
-     * 状態の取得
+     * 状態の取得（デバッグ用）
      */
     getState() {
         return {
@@ -506,7 +550,219 @@ class Ball extends PhysicsEntity {
             color: this.color,
             energyLevel: this.energyLevel,
             collisionCount: this.collisionCount,
-            isCharged: this.isCharged
+            isCharged: this.isCharged,
+            isPooled: this.isPooled,
+            trail: this.trail.length,
+            rotationAngle: this.rotationAngle
         };
+    }
+
+    /**
+     * プール統計情報の取得
+     */
+    getPoolInfo() {
+        return {
+            isPooled: this.isPooled,
+            canBePooled: true,
+            resetCount: this.resetCount || 0,
+            poolOrigin: this.isPooled ? 'pool' : 'direct'
+        };
+    }
+
+    /**
+     * デバッグ情報描画（拡張版）
+     */
+    drawDebugInfo(ctx) {
+        if (!CONFIG.DEBUG.SHOW_COLLISION_BOXES) return;
+
+        super.drawDebugInfo(ctx);
+
+        // プール情報の表示
+        if (CONFIG.DEBUG.LOG_PERFORMANCE) {
+            ctx.save();
+            ctx.font = '8px monospace';
+            ctx.fillStyle = this.isPooled ? 'lime' : 'orange';
+            ctx.textAlign = 'center';
+            ctx.fillText(
+                this.isPooled ? 'P' : 'D',
+                this.x,
+                this.y + this.radius + 15
+            );
+            ctx.restore();
+        }
+    }
+
+    /**
+     * エラーハンドリング強化
+     */
+    safeUpdate(deltaTime = 1) {
+        try {
+            this.update(deltaTime);
+            return true;
+        } catch (error) {
+            console.error('Error updating ball:', error);
+            console.error('Ball state:', this.getState());
+
+            // エラーが発生した場合はボールを非アクティブ化
+            this.isActive = false;
+            return false;
+        }
+    }
+
+    /**
+     * 安全な描画処理
+     */
+    safeDraw(ctx) {
+        try {
+            this.draw(ctx);
+            return true;
+        } catch (error) {
+            console.error('Error drawing ball:', error);
+            console.error('Ball state:', this.getState());
+            return false;
+        }
+    }
+
+    /**
+     * メモリ使用量の推定
+     */
+    getMemoryFootprint() {
+        const baseSize = 200; // 基本オブジェクトサイズ(bytes)
+        const trailSize = this.trail.length * 24; // トレイルデータ
+        const colorSize = 50; // 色情報
+
+        return baseSize + trailSize + colorSize;
+    }
+
+    /**
+     * パフォーマンス最適化用の軽量更新
+     */
+    lightweightUpdate(deltaTime = 1) {
+        // 最小限の更新のみ実行
+        super.updatePosition(deltaTime);
+
+        // 重い処理をスキップ
+        // - トレイル更新なし
+        // - 詳細なビジュアル効果なし
+        // - 基本的な物理演算のみ
+
+        this.checkOutOfBounds();
+        this.checkSlotCollision();
+    }
+
+    /**
+     * 品質レベルに応じた更新
+     */
+    qualityUpdate(deltaTime = 1, qualityLevel = 1.0) {
+        if (qualityLevel > 0.7) {
+            // 高品質更新
+            this.update(deltaTime);
+        } else if (qualityLevel > 0.3) {
+            // 中品質更新（一部エフェクト削減）
+            super.update(deltaTime);
+            this.updateVisualEffects(deltaTime);
+            this.checkSlotCollision();
+            this.checkOutOfBounds();
+        } else {
+            // 低品質更新（最小限）
+            this.lightweightUpdate(deltaTime);
+        }
+    }
+
+    /**
+     * ボールの複製（デバッグ・テスト用）
+     */
+    clone() {
+        const clonedBall = new Ball(this.x, this.y, {
+            vx: this.vx,
+            vy: this.vy,
+            color: this.color
+        });
+
+        // 追加プロパティのコピー
+        clonedBall.energyLevel = this.energyLevel;
+        clonedBall.collisionCount = this.collisionCount;
+        clonedBall.isCharged = this.isCharged;
+
+        return clonedBall;
+    }
+
+    /**
+     * ボールの正常性チェック
+     */
+    validate() {
+        const issues = [];
+
+        // 位置の正常性
+        if (isNaN(this.x) || isNaN(this.y)) {
+            issues.push('Invalid position coordinates');
+        }
+
+        // 速度の正常性
+        if (isNaN(this.vx) || isNaN(this.vy)) {
+            issues.push('Invalid velocity values');
+        }
+
+        // 速度の異常値チェック
+        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        if (speed > CONFIG.PHYSICS.MAX_VELOCITY * 2) {
+            issues.push('Velocity exceeds safe limits');
+        }
+
+        // スケールの正常性
+        if (isNaN(this.scale) || this.scale <= 0) {
+            issues.push('Invalid scale value');
+        }
+
+        // 色の正常性
+        if (!this.color || typeof this.color !== 'string') {
+            issues.push('Invalid color value');
+        }
+
+        return {
+            isValid: issues.length === 0,
+            issues: issues
+        };
+    }
+
+    /**
+     * 自動修復機能
+     */
+    autoRepair() {
+        const validation = this.validate();
+
+        if (!validation.isValid) {
+            console.warn('Auto-repairing ball:', validation.issues);
+
+            // 位置の修復
+            if (isNaN(this.x)) this.x = CONFIG.GAME.CANVAS_WIDTH / 2;
+            if (isNaN(this.y)) this.y = CONFIG.BALL.INITIAL_Y;
+
+            // 速度の修復
+            if (isNaN(this.vx)) this.vx = 0;
+            if (isNaN(this.vy)) this.vy = 0;
+
+            // 速度制限
+            const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+            if (speed > CONFIG.PHYSICS.MAX_VELOCITY) {
+                const scale = CONFIG.PHYSICS.MAX_VELOCITY / speed;
+                this.vx *= scale;
+                this.vy *= scale;
+            }
+
+            // スケールの修復
+            if (isNaN(this.scale) || this.scale <= 0) this.scale = 1.0;
+
+            // 色の修復
+            if (!this.color || typeof this.color !== 'string') {
+                this.color = Utils.Color.generateRandomCyberColor();
+                this.baseColor = this.color;
+            }
+
+            console.log('Ball auto-repair completed');
+            return true;
+        }
+
+        return false;
     }
 }
