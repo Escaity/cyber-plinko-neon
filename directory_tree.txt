@@ -1,0 +1,85 @@
+cyber-plinko-v2.1/
+├── index.html                      # メインHTMLファイル (統合版)
+├── README.md                       # プロジェクト説明書
+├── LICENSE                         # ライセンスファイル
+├── package.json                    # プロジェクト設定 (将来的なnpm対応)
+│
+├── src/                           # ソースコードディレクトリ
+│   ├── config/
+│   │   └── config.js              # ゲーム設定・コンフィグレーション
+│   │
+│   ├── utils/
+│   │   └── utils.js               # 汎用ユーティリティ関数
+│   │
+│   ├── core/                      # コアシステム
+│   │   ├── game-state.js          # ゲーム状態管理
+│   │   ├── game-loop.js           # メインゲームループ
+│   │   └── main.js                # アプリケーションエントリーポイント
+│   │
+│   ├── physics/                   # 物理演算システム
+│   │   ├── physics-entity.js      # 物理エンティティ基底クラス
+│   │   ├── physics-engine.js      # 物理エンジン本体
+│   │   └── collision-detector.js  # 衝突検出システム
+│   │
+│   ├── entities/                  # ゲームエンティティ
+│   │   ├── ball.js                # ボールクラス
+│   │   ├── peg.js                 # ペグクラス
+│   │   └── slot.js                # スロットクラス
+│   │
+│   ├── systems/                   # ゲームシステム
+│   │   ├── renderer.js            # レンダリングエンジン
+│   │   ├── input-handler.js       # 入力処理システム
+│   │   ├── particle-effects.js    # パーティクルエフェクト
+│   │   ├── performance-monitor.js # パフォーマンス監視
+│   │   └── object-pool.js         # オブジェクトプール
+│   │
+│   └── initialization/
+│       └── game-initializer.js    # ゲーム初期化システム
+│
+├── assets/                        # アセットファイル
+│   ├── styles/
+│   │   ├── styles.css             # メインスタイルシート
+│   │   ├── components/            # コンポーネント別スタイル
+│   │   │   ├── terminal.css       # ターミナル風UI
+│   │   │   ├── buttons.css        # ボタンスタイル
+│   │   │   └── animations.css     # アニメーション定義
+│   │   └── themes/
+│   │       ├── cyberpunk.css      # サイバーパンクテーマ
+│   │       └── retro.css          # レトロテーマ (将来用)
+│   │
+│   ├── fonts/                     # フォントファイル (ローカル用)
+│   │   ├── Orbitron-Regular.woff2
+│   │   ├── Orbitron-Bold.woff2
+│   │   └── ShareTechMono-Regular.woff2
+│   │
+│   ├── images/                    # 画像アセット
+│   │   ├── logo/
+│   │   │   ├── cyber-plinko-logo.svg
+│   │   │   └── favicon.ico
+│   │   ├── ui/
+│   │   │   ├── grid-pattern.png
+│   │   │   └── noise-texture.png
+│   │   └── screenshots/           # ゲームスクリーンショット
+│   │       ├── gameplay-1.png
+│   │       ├── gameplay-2.png
+│   │       └── demo.gif
+│   │
+│   └── audio/                     # サウンドファイル (将来的実装)
+│       ├── sfx/
+│       │   ├── ball-drop.mp3
+│       │   ├── ball-hit.mp3
+│       │   ├── slot-hit.mp3
+│       │   └── explosion.mp3
+│       └── bgm/
+│           └── cyberpunk-ambient.mp3
+│
+└── .github/                       # GitHub設定
+    ├── workflows/                 # GitHub Actions
+    │   ├── ci.yml                 # 継続的インテグレーション
+    │   ├── deploy.yml             # 自動デプロイ
+    │   └── performance-check.yml  # パフォーマンスチェック
+    ├── ISSUE_TEMPLATE/            # イシューテンプレート
+    │   ├── bug_report.md
+    │   ├── feature_request.md
+    │   └── performance_issue.md
+    └── PULL_REQUEST_TEMPLATE.md   # プルリクエストテンプレート

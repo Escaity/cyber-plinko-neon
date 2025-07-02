@@ -1,0 +1,341 @@
+/* サイバーパンク・ターミナル風デザイン */
+:root {
+    --cyber-green: #00ff41;
+    --cyber-blue: #00d4ff;
+    --cyber-purple: #bc13fe;
+    --cyber-orange: #ff6600;
+    --dark-bg: #0a0a0a;
+    --darker-bg: #050505;
+    --terminal-bg: #0d1b2a;
+    --terminal-border: #1b263b;
+    --grid-color: rgba(0, 255, 65, 0.1);
+    --glow-shadow: 0 0 20px;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: var(--dark-bg);
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    color: var(--cyber-green);
+    overflow-x: hidden;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+/* アニメーション背景グリッド */
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image:
+            linear-gradient(rgba(0, 255, 65, 0.05) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0, 255, 65, 0.05) 1px, transparent 1px);
+    background-size: 50px 50px;
+    animation: gridMove 20s linear infinite;
+    z-index: -1;
+}
+
+@keyframes gridMove {
+    0% { transform: translate(0, 0); }
+    100% { transform: translate(50px, 50px); }
+}
+
+.terminal-container {
+    background: linear-gradient(135deg, var(--terminal-bg) 0%, var(--darker-bg) 100%);
+    border: 2px solid var(--cyber-green);
+    border-radius: 10px;
+    box-shadow:
+            var(--glow-shadow) var(--cyber-green),
+            inset 0 0 20px rgba(0, 255, 65, 0.1);
+    padding: 20px;
+    max-width: 700px;
+    width: 100%;
+    backdrop-filter: blur(10px);
+    position: relative;
+    overflow: hidden;
+}
+
+.terminal-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+            45deg,
+            transparent 30%,
+            rgba(0, 255, 65, 0.02) 50%,
+            transparent 70%
+    );
+    animation: scanline 3s linear infinite;
+    pointer-events: none;
+}
+
+@keyframes scanline {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+.terminal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background: var(--darker-bg);
+    border: 1px solid var(--cyber-green);
+    border-radius: 5px;
+    margin-bottom: 20px;
+    font-family: 'Orbitron', monospace;
+    font-weight: 700;
+}
+
+.terminal-title {
+    color: var(--cyber-green);
+    text-shadow: 0 0 10px var(--cyber-green);
+    font-size: 14px;
+    letter-spacing: 2px;
+}
+
+.terminal-status {
+    color: var(--cyber-blue);
+    text-shadow: 0 0 10px var(--cyber-blue);
+    font-size: 12px;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.ascii-art {
+    font-size: 4px;
+    line-height: 1;
+    color: var(--cyber-green);
+    text-shadow: 0 0 5px var(--cyber-green);
+    margin-bottom: 10px;
+    text-align: center;
+    overflow: hidden;
+    white-space: pre;
+}
+
+.info-display {
+    text-align: center;
+    margin-bottom: 20px;
+    padding: 15px;
+    border: 1px solid rgba(0, 255, 65, 0.3);
+    border-radius: 5px;
+    background: rgba(0, 20, 10, 0.8);
+}
+
+.instruction {
+    font-size: 12px;
+    color: var(--cyber-blue);
+    text-shadow: 0 0 8px var(--cyber-blue);
+    line-height: 1.6;
+    font-family: 'Share Tech Mono', monospace;
+}
+
+canvas {
+    border: 2px solid var(--cyber-green);
+    border-radius: 8px;
+    background: var(--darker-bg);
+    display: block;
+    margin: 0 auto;
+    box-shadow:
+            inset 0 0 50px rgba(0, 255, 65, 0.1),
+            0 0 30px rgba(0, 255, 65, 0.3);
+    position: relative;
+}
+
+.controls-panel {
+    margin-top: 20px;
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 20px;
+    align-items: center;
+}
+
+.stat-display {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+}
+
+.stat-item {
+    background: var(--darker-bg);
+    border: 1px solid var(--cyber-green);
+    border-radius: 5px;
+    padding: 8px 12px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.2), transparent);
+    animation: statGlow 3s ease-in-out infinite;
+}
+
+@keyframes statGlow {
+    0% { left: -100%; }
+    50% { left: 0%; }
+    100% { left: 100%; }
+}
+
+.stat-label {
+    display: block;
+    font-size: 10px;
+    color: var(--cyber-blue);
+    text-shadow: 0 0 5px var(--cyber-blue);
+    margin-bottom: 2px;
+    font-weight: 700;
+}
+
+.stat-value {
+    display: block;
+    font-size: 16px;
+    color: var(--cyber-green);
+    text-shadow: 0 0 10px var(--cyber-green);
+    font-weight: 700;
+    font-family: 'Orbitron', monospace;
+}
+
+.cyber-button {
+    position: relative;
+    background: var(--darker-bg);
+    border: 2px solid var(--cyber-green);
+    color: var(--cyber-green);
+    padding: 12px 24px;
+    font-family: 'Orbitron', monospace;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    border-radius: 5px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    min-width: 150px;
+}
+
+.cyber-button:hover {
+    background: rgba(0, 255, 65, 0.1);
+    box-shadow:
+            0 0 20px var(--cyber-green),
+            inset 0 0 20px rgba(0, 255, 65, 0.1);
+    transform: translateY(-2px);
+}
+
+.cyber-button:active {
+    transform: translateY(0);
+    box-shadow:
+            0 0 10px var(--cyber-green),
+            inset 0 0 10px rgba(0, 255, 65, 0.2);
+}
+
+.reset-btn {
+    border-color: var(--cyber-orange);
+    color: var(--cyber-orange);
+}
+
+.reset-btn:hover {
+    background: rgba(255, 102, 0, 0.1);
+    box-shadow:
+            0 0 20px var(--cyber-orange),
+            inset 0 0 20px rgba(255, 102, 0, 0.1);
+}
+
+.button-text {
+    position: relative;
+    z-index: 2;
+}
+
+.button-glow {
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.4), transparent);
+    transition: left 0.5s ease;
+}
+
+.cyber-button:hover .button-glow {
+    left: 100%;
+}
+
+.terminal-footer {
+    margin-top: 20px;
+    padding: 10px;
+    text-align: center;
+    font-size: 10px;
+    color: rgba(0, 255, 65, 0.6);
+    border-top: 1px solid rgba(0, 255, 65, 0.3);
+    font-family: 'Share Tech Mono', monospace;
+}
+
+/* レスポンシブデザイン */
+@media (max-width: 768px) {
+    .terminal-container {
+        margin: 10px;
+        padding: 15px;
+    }
+
+    canvas {
+        width: 100%;
+        height: auto;
+    }
+
+    .controls-panel {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+
+    .stat-display {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+    }
+
+    .ascii-art {
+        font-size: 3px;
+    }
+}
+
+/* スクロールバーのカスタマイズ */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--dark-bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--cyber-green);
+    border-radius: 4px;
+    box-shadow: 0 0 5px var(--cyber-green);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--cyber-blue);
+    box-shadow: 0 0 8px var(--cyber-blue);
+}

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CYBER PLINKO v2.1</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="terminal-container">
+    <div class="terminal-header">
+        <span class="terminal-title">[CYBER_PLINKO_v2.1]</span>
+        <span class="terminal-status">SYSTEM_ONLINE</span>
+    </div>
+
+    <div class="game-container">
+        <div class="info-display">
+            <div class="ascii-art">
+                ░█████╗░██╗░░░██╗██████╗░███████╗██████╗░  ██████╗░██╗░░░░░██╗███╗░░██╗██╗░░██╗░█████╗░
+                ██╔══██╗╚██╗░██╔╝██╔══██╗██╔════╝██╔══██╗  ██╔══██╗██║░░░░░██║████╗░██║██║░██╔╝██╔══██╗
+                ██║░░╚═╝░╚████╔╝░██████╦╝█████╗░░██████╔╝  ██████╔╝██║░░░░░██║██╔██╗██║█████═╝░██║░░██║
+                ██║░░██╗░░╚██╔╝░░██╔══██╗██╔══╝░░██╔══██╗  ██╔═══╝░██║░░░░░██║██║╚████║██╔═██╗░██║░░██║
+                ╚█████╔╝░░░██║░░░██████╦╝███████╗██║░░██║  ██║░░░░░███████╗██║██║░╚███║██║░╚██╗╚█████╔╝
+                ░╚════╝░░░░╚═╝░░░╚═════╝░╚══════╝╚═╝░░╚═╝  ╚═╝░░░░░╚══════╝╚═╝╚═╝░░╚══╝╚═╝░░╚═╝░╚════╝░
+            </div>
+            <div class="instruction">
+                > MOUSE_POSITION_SET_DROP_COORDINATES <br>
+                > CLICK_TO_DEPLOY_DATA_SPHERE
+            </div>
+        </div>
+
+        <canvas id="gameCanvas" width="600" height="700"></canvas>
+
+        <div class="controls-panel">
+            <div class="stat-display">
+                <div class="stat-item">
+                    <span class="stat-label">CREDITS:</span>
+                    <span class="stat-value" id="score">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">DATA_SPHERES:</span>
+                    <span class="stat-value" id="ballCount">15</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">FPS:</span>
+                    <span class="stat-value" id="fps">60</span>
+                </div>
+            </div>
+
+            <button class="cyber-button" onclick="dropBall()">
+                <span class="button-text">DEPLOY_SPHERE</span>
+                <div class="button-glow"></div>
+            </button>
+
+            <button class="cyber-button reset-btn" onclick="resetGame()">
+                <span class="button-text">SYSTEM_RESET</span>
+                <div class="button-glow"></div>
+            </button>
+        </div>
+    </div>
+
+    <div class="terminal-footer">
+        <span class="footer-text">NEURAL_NET_PHYSICS_ENGINE_v3.7 | QUANTUM_COLLISION_DETECTION_ENABLED</span>
+    </div>
+</div>
+
+<!-- Core Configuration -->
+<script src="src/config/config.js"></script>
+
+<!-- Utilities and Effects -->
+<script src="src/utils/utils.js"></script>
+<script src="src/systems/particle-effects.js"></script>
+<script src="src/systems/performance-monitor.js"></script>
+
+<!-- Physics System -->
+<script src="src/physics/physics-entity.js"></script>
+<script src="src/physics/collision-detector.js"></script>
+<script src="src/physics/physics-engine.js"></script>
+
+<!-- Game Entities -->
+<script src="src/entities/ball.js"></script>
+<script src="src/entities/peg.js"></script>
+<script src="src/entities/slot.js"></script>
+
+<!-- Game Systems -->
+<script src="src/core/game-state.js"></script>
+<script src="src/systems/object-pool.js"></script>
+<script src="src/systems/renderer.js"></script>
+<script src="src/initialization/game-initializer.js"></script>
+<script src="src/systems/input-handler.js"></script>
+
+<!-- Core Game Logic -->
+<script src="src/core/game-loop.js"></script>
+<script src="src/core/main.js"></script>
+</body>
+</html>
